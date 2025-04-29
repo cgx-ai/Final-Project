@@ -1,16 +1,41 @@
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from functools import reduce # Import reduce
 import threading
 
-class Task:
+#  Je'Lin S: Factory to create tasks
+class TaskFactory:
+    @staticmethod
+    def create_task(task_type, title, description, due_date, priority, status="Open"):
+        # Creates tasks based on task type
+        if task_type == "Basic":
+            return Task(title, description, due_date, priority, status)
+        else:
+            raise ValueError("Unknown task type")
+
+# Hector V - Abstract Class
+# Hector V - it will define common interface for different task types
+# Hector V - all subclasses implement essental methods
+class AbstractTask(ABC):
     def __init__(self, title, description, due_date, priority, status="Open"):
-        self._title = title  # Encapsulation: Private variable
+        self._title = title  # Hector V - Encapsulation: Private variable
         self._description = description
-        self._due_date = self._parse_date(due_date)  # Store as datetime object
+        self._due_date = self._parse_date(due_date)# Hector V Store as datetime object
         self._priority = priority
         self._status = status
 
-    # Getters and setters for private variables
+    # Hector V - Added abstractmethod to parse due date string into datetime
+    @abstractmethod
+    def _parse_date(self, due_date_str):
+      pass
+
+    # Hector V - this is to check if task is overdue
+    @abstractmethod
+    def is_overdue(self):
+      pass
+
+    # Hector V - Encapsulation
+    # Hector V - Getters and setters for private variables
     def get_title(self):
         return self._title
 
@@ -32,23 +57,29 @@ class Task:
     def set_description(self, new_description):
         self._description = new_description
 
-    def _parse_date(self, due_date_str):
-        # Input validation using for loop with try-except block
-        for fmt in ["%Y-%m-%d","%m-%d-%Y", "%m/%d/%Y", "%d/%m/%Y"]:
-            try:
-                return datetime.strptime(due_date_str, fmt)
-            except ValueError:
-                pass  # Ignore errors for invalid formats
+    def __str__(self):
+      return f"Title: {self._title}\nDescription: {self._description}\nDue Date: {self._due_date.strftime('%Y-%m-%d')}\nPriority: {self._priority}\nStatus: {self._status}"
 
-        raise ValueError("Invalid date format. Please use MM-DD-YYYY.")
+# Hector V - Inheritance
+# Hector V - # The Task class inherits from AbstractTask, implementing the required methods.
+class Task(AbstractTask):
+  def __init__(self, title, description, due_date, priority, status = "Open"):
+    super().__init__(title, description, due_date, priority, status)
 
-    def is_overdue(self):
+  def _parse_date(self, due_date_str):
+    # Input validation using for loop with try-except block
+    for fmt in ["%Y-%m-%d","%m-%d-%Y", "%m/%d/%Y", "%d/%m/%Y"]:
+      try:
+        return datetime.strptime(due_date_str, fmt)
+      except ValueError:
+        pass  # Ignore errors for invalid formats
+
+    raise ValueError("Invalid date format. Please use MM-DD-YYYY.")
+
+  def is_overdue(self):
         return self._due_date < datetime.now()
 
-    def __str__(self):
-        return f"Title: {self._title}\nDescription: {self._description}\nDue Date: {self._due_date.strftime('%Y-%m-%d')}\nPriority: {self._priority}\nStatus: {self._status}"
-
-
+# Tiffanie D
 class TaskManager:
     def __init__(self):
         self._tasks = []
@@ -74,7 +105,6 @@ class TaskManager:
         # Functional programming using filter
         return list(filter(lambda task: task.is_overdue(), self._tasks))
 
-
 # Jelin S: Singleton wrapper for TaskManager
 class TaskManagerSingleton:
     _instance = None
@@ -85,15 +115,14 @@ class TaskManagerSingleton:
             TaskManagerSingleton._instance = TaskManager()
         return TaskManagerSingleton._instance
 
-
-
-    # Tiffanie D - added reduce
-    def get_completed_tasks(self):
+    # Tiffanie D - added reduce()
+    @staticmethod
+    def get_completed_tasks():
         # functional programming using reduce to count completed tasks
         # assuming 'status' attribute is used to track task completion
-        task_manager =  self.get_instance() # added task_manager = self.get_instance(), needed to work for case 8.
-        completed_tasks = [task for task in self._tasks if task._status == "Completed"] # change to _status
-        completed_count = reduce(lambda count, task: count + (1 if task._status == "Completed" else 0), self._tasks, 0) # change to _status
+        task_manager =  TaskManagerSingleton.get_instance() # added task_manager = self.get_instance(), needed to work for case 8.
+        completed_tasks = [task for task in task_manager._tasks if task._status == "Completed"] # change to _status
+        completed_count = reduce(lambda count, task: count + (1 if task._status == "Completed" else 0), task_manager._tasks , 0) # change to _status
         return completed_tasks, completed_count # return count and list of completed task
 
 #Je'Lin S: Concurrency
@@ -115,9 +144,10 @@ def filter_by_priority(tasks, priority):
     return [task for task in tasks if task.get_priority() == priority]
 
 def main():
-    task_manager = TaskManager()
+    task_manager = TaskManagerSingleton.get_instance()
     notification = Notification()
 
+    # Tiffanie D & Patrick M - switch/case statements
     while True:
         print("Task Management System:")
         print("-----")
@@ -219,7 +249,7 @@ def main():
                     except ValueError:
                         print("Error: Please enter a valid number.\n")
 
-                # Update Tittle
+                # Update Title
                 while True:
                     print("Would you like to edit the title? 1. YES, 2. NO\n")
                     edit_title = input("Enter your choice: ").strip()
@@ -355,6 +385,7 @@ def main():
                     print(task)
                     print("\n")
 
+          # Tiffanie D
           case "6":
             # Code to view all overdue tasks:
             overdue_tasks = task_manager.get_overdue_tasks()
@@ -371,7 +402,7 @@ def main():
           # Tiffanie D
           case "7":
               # Code to view all completed tasks:
-              completed_tasks, completed_count = task_manager.get_completed_tasks()
+              completed_tasks, completed_count = TaskManagerSingleton.get_completed_tasks() # Changed to call from TaskManagerSingleton
               print(f"Completed Tasks ({completed_count}):") # Print the count
               print("\n")
               if not completed_tasks:  # Check if the completed_tasks list is empty
